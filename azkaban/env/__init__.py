@@ -1,1 +1,1 @@
-from .team import TeamsEnv
+from .team import TeamsEnv, TeamsEnvConf

@@ -3,7 +3,8 @@ from itertools import product
 
 import numpy as np
 
-from azkaban.core import Env, Observation, EnvConf
+from azkaban.display import Table
+from azkaban.env.core import Env, Observation, EnvConf
 from azkaban.utils import SparsePlane, dataclass, merge_dataclass
 
 TeamsEnvProps = dataclass(
@@ -61,6 +62,11 @@ class TeamsEnv(Env):
 
         self.world = None
 
+        self.img = Table(
+            groups_count=len(self.init_members),
+            alpha_size=self.conf.health
+        )
+
         self.reset()
 
     def _offsets(self, radius):
@@ -95,7 +101,7 @@ class TeamsEnv(Env):
 
     @property
     def _done(self):
-        return sum(filter(lambda x: x > 0, self.members)) <= 1
+        return sum([x > 0 for x in self.members]) <= 1
 
     def step(self):
         points = list(self.world)
@@ -157,6 +163,7 @@ class TeamsEnv(Env):
         return self._done
 
     def reset(self):
+        self.img.reset()
         self.world = SparsePlane()
         self.members = list(self.init_members)
 
@@ -173,4 +180,21 @@ class TeamsEnv(Env):
             )
 
     def render(self):
-        pass
+        shape = self.conf.world_shape
+        if len(shape) != 2:
+            raise ValueError('render supports only 2D worlds')
+
+        n, m = shape
+        field = np.zeros(shape=shape + (4,))
+
+        for i in range(n):
+            for j in range(m):
+                if (i, j) in self.world:
+                    agent = self.world[i, j]
+                    color = self.img.color(group=agent.team, alpha=agent.health)
+                else:
+                    color = self.img.background
+
+                field[i, j, :] = color
+
+        self.img.update(field)
