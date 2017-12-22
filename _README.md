@@ -1,17 +1,24 @@
 # Azkaban
 
 ```python
-from azkaban.agent import RandomAgent
+from azkaban.agent import RandomAgent, GreedyAgent
 from azkaban.env import TeamsEnv, TeamsEnvConf
 from azkaban.monitor import VideoMonitor
 
-# create 2-teams env with agents acting randomly
+# 5x5 field
+conf = TeamsEnvConf(
+    world_shape=(5, 5),
+    comm_shape=(5,)
+)
+
+# 1 team - agents acting randomly
+# 2 team - agents greedily looking for someone to kill
 env = TeamsEnv(
-    teams=[(RandomAgent(), RandomAgent()), (RandomAgent(), RandomAgent())],
-    conf=TeamsEnvConf(
-        world_shape=(5, 5),
-        comm_shape=(5,)
-    )
+    teams=[
+        (RandomAgent(conf=conf), RandomAgent(conf=conf)),
+        (GreedyAgent(conf=conf), GreedyAgent(conf=conf))
+    ],
+    conf=conf
 )
 
 # wrap env with monitor which will record play session as a video

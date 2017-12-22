@@ -13,7 +13,8 @@ class Agent(object):
         :param reward: Reward after the last action (0.0 at the session start)
         :param done: True only if game ended or agent is killed (if False, this
                      is the last call of step in this session)
-        :return: (action, message): Returns action id and a new message vector
+        :return: ((cell_id, action), comm): Returns action and id of the cell for this action
+                                            along with communication vector
         """
         pass
 
