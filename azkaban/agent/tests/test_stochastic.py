@@ -21,8 +21,7 @@ class TestStochastic(unittest.TestCase):
         experiments = 10000
         obs = env._observation((0, 0))
 
-        cells_count = len(obs.view)
-        actions_count = len(env.conf.action_space)
+        cells_count, actions_count = env.conf.action_space.shape
 
         cell_stats = np.zeros(cells_count)
         action_stats = np.zeros(actions_count)
@@ -30,7 +29,7 @@ class TestStochastic(unittest.TestCase):
         for _ in range(experiments):
             (cell_id, action), _ = agent.step(obs, 0.0, False)
             cell_stats[cell_id] += 1
-            action_stats[action.value] += 1
+            action_stats[action] += 1
 
         cell_stats /= experiments
         action_stats /= experiments

@@ -1,5 +1,4 @@
-import random
-from abc import abstractmethod, abstractclassmethod
+from abc import abstractmethod
 
 from azkaban.utils import dataclass
 
@@ -57,48 +56,13 @@ class ObservationCell(dataclass('ObservationCell', coord=None, actions_state=Non
     pass
 
 
-class EnvConf(dataclass('EnvConf', world_shape=None, comm_shape=None, action_space=None)):
+class EnvConf(dataclass('EnvConf', world_shape=None, comm_shape=None, observation_space=None, action_space=None)):
     """
     Base class for all configs
 
     :var world_shape: Shows shape of the world
     :var comm_shape Shows shape of communication vector
-    :var action_space: `ActionSpace` of the world
+    :var action_space: `Space` of observations available in the world
+    :var action_space: `Space` of actions available in the world
     """
     pass
-
-
-class ActionSpace(object):
-    """Base class for all action spaces"""
-
-    @abstractclassmethod
-    def sample(cls):
-        pass
-
-    @abstractclassmethod
-    def __contains__(cls, item):
-        pass
-
-
-class Discrete(ActionSpace):
-    """
-    Discrete action spaces are defined as:
-    1) `len(discrete_space)` is a finite positive integer representing
-       a number of actions in this space
-    2) each number in range `0..len(discrete_space)-1` **must** represent a valid action
-    3) action #0 is a "do nothing" action
-
-    Advice: Discrete action spaces could be described as `Enum` objects (see `TeamsActions` for an example)
-    """
-
-    @abstractclassmethod
-    def __len__(cls):
-        pass
-
-    @abstractclassmethod
-    def __iter__(cls):
-        pass
-
-    @classmethod
-    def sample(cls):
-        return random.choice(tuple(cls))

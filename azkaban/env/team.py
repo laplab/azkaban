@@ -6,8 +6,9 @@ from itertools import product
 import numpy as np
 
 from azkaban.display import Table
-from azkaban.env.core import Env, Observation, ObservationCell, EnvConf, Discrete
+from azkaban.env.core import Env, Observation, ObservationCell, EnvConf
 from azkaban.utils import SparsePlane, dataclass, merge_dataclass, HiddenFrozenView
+from azkaban.space import Discrete, Product
 
 
 class TeamsAccess(Enum):
@@ -16,7 +17,7 @@ class TeamsAccess(Enum):
     ALL_TEAMS = 'all_teams'
 
 
-class TeamsActions(Discrete, Enum):
+class TeamsActions(Enum):
     NO_OP = 0
     SHARE = 1
     ATTACK = 2
@@ -43,8 +44,14 @@ TeamsEnvProps = dataclass(
 )
 
 
-class TeamsEnvConf(merge_dataclass('TeamsEnvConf', (EnvConf, TeamsEnvProps), action_space=TeamsActions)):
-    pass
+class TeamsEnvConf(merge_dataclass('TeamsEnvConf', (EnvConf, TeamsEnvProps))):
+    def __init__(self, *args, **kwargs):
+        super(TeamsEnvConf, self).__init__(*args, **kwargs)
+
+        act_radius = max(self.share_radius, self.attack_radius, self.move_radius)
+        width = (2*act_radius + 1)**len(self.world_shape) - 1
+        height = len(TeamsActions)
+        self.action_space = Product([Discrete(width), Discrete(height)])
 
 
 TeamsObservableProps = dataclass(
@@ -81,7 +88,7 @@ class TeamsEnv(Env):
             self.agents[idx] = []
 
             for agent in team:
-                data = TeamsDataCell(agent, data=TeamsObservationCell())
+                data = TeamsDataCell(agent=agent, data=TeamsObservationCell())
                 self.agents[idx].append(data)
 
         self.conf = conf
@@ -117,16 +124,16 @@ class TeamsEnv(Env):
 
     @lru_cache(10)
     def _actions_state(self, can_move=False, can_share=False, can_attack=False):
-        state = {TeamsActions.NO_OP}
+        state = {TeamsActions.NO_OP.value}
 
         if can_move:
-            state.add(TeamsActions.MOVE)
+            state.add(TeamsActions.MOVE.value)
         
         if can_share:
-            state.add(TeamsActions.SHARE)
+            state.add(TeamsActions.SHARE.value)
 
         if can_attack:
-            state.add(TeamsActions.ATTACK)
+            state.add(TeamsActions.ATTACK.value)
 
         return frozenset(state)
 
@@ -200,7 +207,7 @@ class TeamsEnv(Env):
             agent.comm = comm
             agent.cur_reward += self.conf.time_tick_reward
 
-            if action == TeamsActions.NO_OP:
+            if action == TeamsActions.NO_OP.value:
                 continue
 
             # action is not available
@@ -208,13 +215,13 @@ class TeamsEnv(Env):
                 continue
 
             # move
-            if action == TeamsActions.MOVE:
+            if action == TeamsActions.MOVE.value:
                 self.world.move(coord, visible.coord)
             # share action point
-            elif action == TeamsActions.SHARE:
+            elif action == TeamsActions.SHARE.value:
                 neighbour.data.actions += 1
             # but most importantly he attac
-            elif action == TeamsActions.ATTACK:
+            elif action == TeamsActions.ATTACK.value:
                 neighbour.data.health -= 1
                 neighbour.cur_reward += self.conf.lost_health_reward
 

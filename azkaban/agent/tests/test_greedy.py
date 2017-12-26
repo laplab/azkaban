@@ -13,8 +13,8 @@ class TestGreedy(unittest.TestCase):
         )
         env = TeamsEnv(
             teams=[
-                [GreedyAgent(conf=conf, base_action=TeamsActions.ATTACK)],
-                [GreedyAgent(conf=conf, base_action=TeamsActions.NO_OP)]
+                [GreedyAgent(conf=conf, base_action=TeamsActions.ATTACK.value)],
+                [GreedyAgent(conf=conf, base_action=TeamsActions.NO_OP.value)]
             ],
             conf=conf
         )
