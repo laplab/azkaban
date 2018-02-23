@@ -47,7 +47,8 @@
 
         $.getJSON('items.json?_=' + new Date().getTime(), function(items) {
           var compiled = template({items: items});
-          container.append(compiled); 
+          container.append(compiled);
+          MathJax.Hub.Queue(["Typeset", MathJax.Hub]);
         });
       });
     </script>
