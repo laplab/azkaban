@@ -1,0 +1,292 @@
+[
+	{
+		"title": "A3C",
+		"url": "img/1.png",
+		"desc": "A3C with one hidden layer of 256 units",
+		"params": [
+			{
+				"name": "\\gamma",
+				"value": "0.95"
+			},
+			{
+				"name": "lr",
+				"value": "10^{-3}"
+			},
+			{
+				"name": "S",
+				"value": "10^{-2}"
+			},
+			{
+				"name": "||\\nabla||_{max}",
+				"value": "50"
+			},
+			{
+				"name": "steps",
+				"value": "10"
+			},
+			{
+				"name": "advantage",
+				"value": "n-steps"
+			},
+			{
+				"name": "V(s)_{coeff}",
+				"value": "0.25"
+			},
+			{
+				"name": "R_{view}",
+				"value": "1"
+			},
+			{
+				"name": "world",
+				"value": "(7, 7)"
+			},
+			{
+				"name": "teams",
+				"value": "(5, 5)"
+			}
+		]
+	},
+	{
+		"title": "A3C with <code>SharedAdam</code>",
+		"url": "img/2.jpg",
+		"desc": "A3C with one hidden layer of 256 units with <code>SharedAdam</code> optimizer",
+		"params": [
+			{
+				"name": "\\gamma",
+				"value": "0.95"
+			},
+			{
+				"name": "lr",
+				"value": "10^{-3}"
+			},
+			{
+				"name": "S",
+				"value": "10^{-2}"
+			},
+			{
+				"name": "||\\nabla||_{max}",
+				"value": "50"
+			},
+			{
+				"name": "steps",
+				"value": "10"
+			},
+			{
+				"name": "advantage",
+				"value": "n-steps"
+			},
+			{
+				"name": "V(s)_{coeff}",
+				"value": "0.25"
+			},
+			{
+				"name": "R_{view}",
+				"value": "1"
+			},
+			{
+				"name": "world",
+				"value": "(7, 7)"
+			},
+			{
+				"name": "teams",
+				"value": "(5, 5)"
+			}
+		]
+	},
+	{
+		"title": "A3C in 3 parallel envs",
+		"url": "img/3.jpg",
+		"desc": "A3C with one hidden layer of 256 units with <code>SharedAdam</code> optimizer in 3 parallel environments",
+		"params": [
+			{
+				"name": "\\gamma",
+				"value": "0.95"
+			},
+			{
+				"name": "lr",
+				"value": "10^{-3}"
+			},
+			{
+				"name": "S",
+				"value": "10^{-2}"
+			},
+			{
+				"name": "||\\nabla||_{max}",
+				"value": "50"
+			},
+			{
+				"name": "steps",
+				"value": "10"
+			},
+			{
+				"name": "advantage",
+				"value": "n-steps"
+			},
+			{
+				"name": "V(s)_{coeff}",
+				"value": "0.25"
+			},
+			{
+				"name": "R_{view}",
+				"value": "1"
+			},
+			{
+				"name": "world",
+				"value": "(7, 7)"
+			},
+			{
+				"name": "teams",
+				"value": "(5, 5)"
+			}
+		]
+	},
+	{
+		"title": "A3C with view radius 2",
+		"url": "img/4.png",
+		"desc": "A3C with one hidden layer of 256 units with <code>SharedAdam</code> optimizer in 5 parallel environments",
+		"params": [
+			{
+				"name": "\\gamma",
+				"value": "0.95"
+			},
+			{
+				"name": "lr",
+				"value": "10^{-3}"
+			},
+			{
+				"name": "S",
+				"value": "10^{-2}"
+			},
+			{
+				"name": "||\\nabla||_{max}",
+				"value": "50"
+			},
+			{
+				"name": "steps",
+				"value": "10"
+			},
+			{
+				"name": "advantage",
+				"value": "n-steps"
+			},
+			{
+				"name": "V(s)_{coeff}",
+				"value": "0.25"
+			},
+			{
+				"name": "R_{view}",
+				"value": "2"
+			},
+			{
+				"name": "world",
+				"value": "(15, 15)"
+			},
+			{
+				"name": "teams",
+				"value": "(5, 5)"
+			}
+		]
+	},
+	{
+		"title": "A3C with act radius 2 (without moving)",
+		"url": "img/5.png",
+		"desc": "A3C with one hidden layer of 256 units with <code>SharedAdam</code> optimizer in 5 parallel environments",
+		"params": [
+			{
+				"name": "\\gamma",
+				"value": "0.95"
+			},
+			{
+				"name": "lr",
+				"value": "10^{-3}"
+			},
+			{
+				"name": "S",
+				"value": "10^{-2}"
+			},
+			{
+				"name": "||\\nabla||_{max}",
+				"value": "50"
+			},
+			{
+				"name": "steps",
+				"value": "10"
+			},
+			{
+				"name": "advantage",
+				"value": "n-steps"
+			},
+			{
+				"name": "V(s)_{coeff}",
+				"value": "0.25"
+			},
+			{
+				"name": "R_{view}",
+				"value": "2"
+			},
+			{
+				"name": "R_{share}",
+				"value": "2"
+			},
+			{
+				"name": "R_{attack}",
+				"value": "2"
+			},
+			{
+				"name": "world",
+				"value": "(15, 15)"
+			},
+			{
+				"name": "teams",
+				"value": "(5, 5)"
+			}
+		]
+	},
+	{
+		"title": "A3C with GAE",
+		"url": "img/6.png",
+		"desc": "A3C with one hidden layer of 256 units with <code>SharedAdam</code> optimizer in 5 parallel environments with GAE",
+		"params": [
+			{
+				"name": "\\gamma",
+				"value": "0.95"
+			},
+			{
+				"name": "lr",
+				"value": "10^{-3}"
+			},
+			{
+				"name": "S",
+				"value": "10^{-2}"
+			},
+			{
+				"name": "||\\nabla||_{max}",
+				"value": "50"
+			},
+			{
+				"name": "steps",
+				"value": "10"
+			},
+			{
+				"name": "advantage",
+				"value": "GAE"
+			},
+			{
+				"name": "V(s)_{coeff}",
+				"value": "0.25"
+			},
+			{
+				"name": "R_{view}",
+				"value": "1"
+			},
+			{
+				"name": "world",
+				"value": "(7, 7)"
+			},
+			{
+				"name": "teams",
+				"value": "(5, 5)"
+			}
+		]
+	}
+]

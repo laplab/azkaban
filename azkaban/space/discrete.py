@@ -1,27 +1,31 @@
 from azkaban.space.core import Space
-import numpy as np
+import random
 
 
 class Discrete(Space):
     """
-    {0, 1, ..., n-1}
-
-    Example usage:
-    self.observation_space = spaces.Discrete(2)
+    Represents space of ids of items in provided iterable
     """
 
-    def __init__(self, n):
-        self.n = n
+    def __init__(self, iterable):
+        self.items = iterable
+
+        self.size = len(iterable)
+        self.ids = tuple(range(self.size))
 
     def sample(self):
-        return np.random.randint(0, self.n)
+        return random.choice(self.ids)
 
-    @property
     def shape(self):
-        return (self.n,)
+        return (self.size,)
 
-    def contains(self, x):
-        return 0 <= x < self.n
+    def elements(self):
+        return self.ids
 
-    def iter(self):
-        yield from range(self.n)
+    def get(self, id):
+        """
+        Get item by it's id
+
+        NOTE: Normally SHOULDN'T be called by an agent
+        """
+        return self.items[id]

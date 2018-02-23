@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+
+    <title>Experiments gallery</title>
+  </head>
+  <body>
+    <div class="container" id="container"></div>
+
+    <script id="item-template" type="text/x-handlebars-template">
+      {{#each items}}
+        <div class="card mt-2">
+          <img class="card-img-top" src="{{url}}" alt="Card image cap">
+          <div class="card-body">
+            <h5 class="card-title text-center">{{{title}}}</h5>
+            <p class="card-text">{{{desc}}}</p>
+            <p class="card-text">
+              $$
+              {{#each params}}
+                {{name}} = {{value}} \quad
+              {{/each}}
+              $$
+            </p>
+          </div>
+        </div>
+      {{/each}}
+    </script>
+
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js?config=TeX-MML-AM_CHTML'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.11/handlebars.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    
+    <script>
+      $(document).ready(function() {
+        MathJax.Hub.Config({
+          CommonHTML: { linebreaks: { automatic: true } },
+          "HTML-CSS": { linebreaks: { automatic: true } },
+                 SVG: { linebreaks: { automatic: true } }
+        });
+        var source = $('#item-template').html();
+        var template = Handlebars.compile(source);
+        var container = $('#container');
+
+        $.getJSON('items.json?_=' + new Date().getTime(), function(items) {
+          var compiled = template({items: items});
+          container.append(compiled); 
+        });
+      });
+    </script>
+  </body>
+</html>

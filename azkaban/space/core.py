@@ -4,17 +4,15 @@ from abc import abstractmethod
 class Space(object):
     @abstractmethod
     def sample(self):
+        """Get random action"""
         pass
 
-    @property
     @abstractmethod
     def shape(self):
+        """Shape of a space"""
         pass
 
     @abstractmethod
-    def contains(self, item):
-        pass
-
-    @abstractmethod
-    def iter(self):
+    def elements(self):
+        """Get list of elements in space"""
         pass

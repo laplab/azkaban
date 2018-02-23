@@ -1,20 +1,58 @@
 import random
 from enum import Enum
-from functools import lru_cache
 from itertools import product
 
 import numpy as np
 
 from azkaban.display import Table
-from azkaban.env.core import Env, Observation, ObservationCell, EnvConf
-from azkaban.utils import SparsePlane, dataclass, merge_dataclass, HiddenFrozenView
-from azkaban.space import Discrete, Product
+from azkaban.env.core import Env, EnvConf
+from azkaban.error import ArgumentError
+from azkaban.space import Discrete
 
 
-class TeamsAccess(Enum):
-    BLOCKED = 'no_access'
-    SAME_TEAM = 'same_team'
-    ALL_TEAMS = 'all_teams'
+class TeamsMap(object):
+    def __init__(self, conf):
+        self.conf = conf
+
+        self.used = None
+        self.team = None
+        self.health = None
+        self.actions = None
+        self.cur_reward = None
+        self.prev_reward = None
+        self.comm = None
+
+        self.reset()
+
+    def move(self, source, dest):
+        self.used[dest] = self.used[source]
+        self.team[dest] = self.team[source]
+        self.health[dest] = self.health[source]
+        self.actions[dest] = self.actions[source]
+        self.cur_reward[dest] = self.cur_reward[source]
+        self.prev_reward[dest] = self.prev_reward[source]
+        self.comm[dest] = self.comm[source]
+
+        self.clear(source)
+
+    def clear(self, coord):
+        self.used[coord] = False
+        self.team[coord] = 0
+        self.health[coord] = 0
+        self.actions[coord] = 0
+        self.cur_reward[coord] = 0
+        self.prev_reward[coord] = 0
+        self.comm[coord] = np.zeros(self.conf.comm_shape)
+
+    def reset(self):
+        self.used = np.zeros(self.conf.world_shape, dtype=np.bool)
+
+        self.team = np.zeros(self.conf.world_shape, dtype=np.int)
+        self.health = np.zeros(self.conf.world_shape, dtype=np.int)
+        self.actions = np.zeros(self.conf.world_shape, dtype=np.int)
+        self.cur_reward = np.zeros(self.conf.world_shape, dtype=np.float)
+        self.prev_reward = np.zeros(self.conf.world_shape, dtype=np.float)
+        self.comm = np.zeros(self.conf.world_shape + self.conf.comm_shape, dtype=np.float)
 
 
 class TeamsActions(Enum):
@@ -24,242 +62,212 @@ class TeamsActions(Enum):
     MOVE = 3
 
 
-TeamsEnvProps = dataclass(
-    'TeamsEnvProps',
-    health=3,
-    actions=0,
-    view_radius=1,
-    share_radius=1,
-    attack_radius=1,
-    move_radius=1,
-    see_health=TeamsAccess.SAME_TEAM,
-    see_actions=TeamsAccess.SAME_TEAM,
-    see_comm=TeamsAccess.SAME_TEAM,
-    comm_init=lambda shape: np.random.normal(size=shape),
-    team_names=None,
-    kill_reward=10.0,
-    damage_reward=1.0,
-    lost_health_reward=-2.0,
-    time_tick_reward=-0.1
-)
-
-
-class TeamsEnvConf(merge_dataclass('TeamsEnvConf', (EnvConf, TeamsEnvProps))):
+class TeamsEnvConf(EnvConf):
     def __init__(self, *args, **kwargs):
+        # initial state of agents
+        self.health = 3
+        self.actions = 0
+
+        # agents properties
+        self.view_radius = 1
+        self.share_radius = 1
+        self.attack_radius = 1
+        self.move_radius = 1
+
+        # maximum distance agent can reach by making action
+        self.act_radius = None
+
+        # optional list of names for each team
+        self.team_names = None
+
+        # reward description
+        self.kill_reward = 1.0
+        self.damage_reward = 0.1
+        self.lost_health_reward = -0.5
+        self.time_tick_reward = -0.01
+
         super(TeamsEnvConf, self).__init__(*args, **kwargs)
 
-        act_radius = max(self.share_radius, self.attack_radius, self.move_radius)
-        width = (2*act_radius + 1)**len(self.world_shape) - 1
-        height = len(TeamsActions)
-        self.action_space = Product([Discrete(width), Discrete(height)])
+        self.act_radius = max(self.share_radius, self.attack_radius, self.move_radius)
 
+        if self.view_radius < self.act_radius:
+            raise ArgumentError('Agent cannot act blindly, extend view radius')
 
-TeamsObservableProps = dataclass(
-    'TeamsObservableProps',
-    team=None,
-    health=None,
-    actions=None,
-    comm=None,
-)
+        width = 2 * self.view_radius + 1
+        self.observation_shapes = (
+            (width, width),                   # teams
+            (width, width),                   # health indicators
+            (width, width),                   # actions left
+            (width, width) + self.comm_shape  # communication vectors
+        )
 
-TeamsObservationCell = merge_dataclass('TeamsObservationCell', (ObservationCell, TeamsObservableProps))
+        depth = len(self.world_shape)
+        directions = tuple(product(range(-self.act_radius, self.act_radius + 1), repeat=depth))
+        actions = tuple(range(len(TeamsActions)))
 
-
-class TeamsDataCell(dataclass('TeamsDataCell', agent=None, data=None, prev_reward=0.0, cur_reward=0.0)):
-    def step(self, new_observation, reward, done):
-        return self.agent.step(new_observation, reward, done)
-
-    def reset(self, *args, **kwargs):
-        self.agent.reset()
-        self.prev_reward = 0.0
-        self.cur_reward = 0.0
-
-        self.data = self.data.__class__(*args, **kwargs)
-
-    @property
-    def is_dead(self):
-        return self.data.health == 0
+        self.action_space = Discrete(tuple(product(directions, actions)))
 
 
 class TeamsEnv(Env):
     def __init__(self, teams, conf):
-        self.agents = {}
+        self.agents = []
+        self.teams_count = len(teams)
         for idx, team in enumerate(teams):
-            self.agents[idx] = []
-
             for agent in team:
-                data = TeamsDataCell(agent=agent, data=TeamsObservationCell())
-                self.agents[idx].append(data)
+                self.agents.append({
+                    'team': idx,
+                    'actor': agent,
+                    'coord': None
+                })
 
         self.conf = conf
+        self.map = TeamsMap(self.conf)
+
         self.members = None
-        self.world = None
+        self.interrupted = None
 
         self.img = Table(
-            groups_count=len(self.agents),
+            groups_count=self.teams_count,
             alpha_size=self.conf.health,
             group_labels=self.conf.team_names
         )
 
         self.reset()
 
-    def _coords_around(self, coord):
-        depth = len(self.conf.world_shape)
-        radius = self.conf.view_radius
-        segment = range(-radius, radius + 1)
-
-        for offset in product(segment, repeat=depth):
-            dist = max(map(abs, offset))
-            if dist == 0:
-                continue
-
-            is_valid = True
-            new_coord = []
-            for i, dim in enumerate(self.conf.world_shape):
-                axis = coord[i] + offset[i]
-                is_valid &= 0 <= axis < dim
-                new_coord.append(axis)
-
-            yield tuple(new_coord), dist, is_valid
-
-    @lru_cache(10)
-    def _actions_state(self, can_move=False, can_share=False, can_attack=False):
-        state = {TeamsActions.NO_OP.value}
-
-        if can_move:
-            state.add(TeamsActions.MOVE.value)
-        
-        if can_share:
-            state.add(TeamsActions.SHARE.value)
-
-        if can_attack:
-            state.add(TeamsActions.ATTACK.value)
-
-        return frozenset(state)
-
     def _observation(self, center):
-        state = self.world[center].data
-        state.coord = center
+        radius = self.conf.view_radius
+        indices = []
+        for ax in center:
+            indices.append(slice(ax-radius, ax+radius + 1))
 
-        view = []
-        for remote, dist, is_valid in self._coords_around(center):
-            neighbour = self.world[remote]
-
-            if neighbour is None or not is_valid:
-                visible = TeamsObservationCell(
-                    coord=remote,
-                    actions_state=self._actions_state(
-                        can_move=(is_valid and dist <= self.conf.move_radius)
-                    )
-                )
-            else:
-                visible = neighbour.data
-                visible.coord = remote
-                visible.actions_state = self._actions_state(
-                    can_share=(state.team == neighbour.data.team and dist <= self.conf.share_radius),
-                    can_attack=(state.team != neighbour.data.team and dist <= self.conf.attack_radius)
-                )
-
-            hidden_fields = []
-            if ((self.conf.see_health == TeamsAccess.SAME_TEAM and state.team != visible.team) or
-                 self.conf.see_health == TeamsAccess.BLOCKED):
-                hidden_fields.append('health')
-
-            if ((self.conf.see_actions == TeamsAccess.SAME_TEAM and state.team != visible.team) or
-                 self.conf.see_actions == TeamsAccess.BLOCKED):
-                hidden_fields.append('actions')
-
-            if ((self.conf.see_comm == TeamsAccess.SAME_TEAM and state.team != visible.team) or
-                 self.conf.see_comm == TeamsAccess.BLOCKED):
-                hidden_fields.append('comm')
-
-            visible = HiddenFrozenView(visible, mask=set(hidden_fields))
-            view.append(visible)
-
-        observation = Observation(
-            view=view,
-            state=state,
-            conf=self.conf
-        )
-
-        return observation
+        return (self.map.team[indices],
+                self.map.health[indices],
+                self.map.actions[indices],
+                self.map.comm[indices])
 
     @property
     def _done(self):
-        return sum([x > 0 for x in self.members]) <= 1
+        return self.interrupted or sum([x > 0 for x in self.members]) <= 1
 
-    def step(self):
-        points = list(self.world)
-        random.shuffle(points)
+    def _move(self, coord, direction):
+        result = list(coord)
+        for (i, delta), ax in zip(enumerate(direction), self.conf.world_shape):
+            result[i] += delta
 
-        for coord, agent in points:
-            # agents killed on this step
-            # are not cleared from points
-            if agent.is_dead:
+            if not (self.conf.view_radius <= result[i] <= ax - self.conf.view_radius - 1):
+                return None, False
+
+        return tuple(result), True
+
+    def step(self, interrupt=False):
+        self.interrupted = interrupt
+
+        random.shuffle(self.agents)
+
+        for agent in self.agents:
+            coord, actor = agent['coord'], agent['actor']
+
+            # check if agent is dead on this step
+            if not self.map.used[coord]:
                 continue
 
-            agent.data.actions += 1
+            self.map.actions[coord] += 1
             obs = self._observation(coord)
-            (cell_id, action), comm = agent.step(obs, agent.prev_reward, self._done)
-            visible = obs.view[cell_id]
-            neighbour = self.world[visible.coord]
+            # TODO: FIX if done happened on the previous step other agents are not notified
+            action_id, comm = actor.step(obs, self.map.prev_reward[coord], self._done)
+            direction, action = self.conf.action_space.get(action_id)
+            new_coord, success = self._move(coord, direction)
 
-            agent.comm = comm
-            agent.cur_reward += self.conf.time_tick_reward
+            # new coord is out of bounds
+            if not success:
+                continue
 
+            # don't want to do anything
             if action == TeamsActions.NO_OP.value:
                 continue
 
-            # action is not available
-            if action not in visible.actions_state:
-                continue
+            # Move
+            # check if cell is free
+            if action == TeamsActions.MOVE.value and not self.map.used[new_coord]:
+                self.map.move(coord, new_coord)
+                agent['coord'] = new_coord
 
-            # move
-            if action == TeamsActions.MOVE.value:
-                self.world.move(coord, visible.coord)
-            # share action point
-            elif action == TeamsActions.SHARE.value:
-                neighbour.data.actions += 1
-            # but most importantly he attac
-            elif action == TeamsActions.ATTACK.value:
-                neighbour.data.health -= 1
-                neighbour.cur_reward += self.conf.lost_health_reward
+            # Share
+            # check if there is anybody to share with from the same team
+            elif (action == TeamsActions.SHARE.value and
+                  self.map.used[new_coord] and
+                  self.map.team[coord] == self.map.team[new_coord]):
+                self.map.actions[new_coord] += 1
 
-                if neighbour.is_dead:
-                    self.members[neighbour.data.team] -= 1
-                    del self.world[visible.coord]
+            # Attack
+            # check if there is anybody to share with from different team
+            elif (action == TeamsActions.ATTACK.value and
+                  self.map.used[new_coord] and
+                  self.map.team[coord] != self.map.team[new_coord]):
+                self.map.health[new_coord] -= 1
+                self.map.cur_reward[new_coord] += self.conf.lost_health_reward
 
-                    agent.cur_reward += self.conf.kill_reward
+                if self.map.health[new_coord] == 0:
+                    # TODO: make faster for large number of agents
+                    for neighbour in self.agents:
+                        if neighbour['coord'] == new_coord:
+                            new_obs = self._observation(new_coord)
+                            neighbour['actor'].step(new_obs, self.map.prev_reward[new_coord], True)
+                            break
+
+                    self.members[self.map.team[new_coord]] -= 1
+                    self.map.clear(new_coord)
+
+                    self.map.cur_reward[coord] += self.conf.kill_reward
                 else:
-                    agent.cur_reward += self.conf.damage_reward
+                    self.map.cur_reward[coord] += self.conf.damage_reward
+
+            # invalid action taken
             else:
-                raise ValueError('invalid action')
+                pass
 
-            agent.prev_reward = agent.cur_reward
-            agent.cur_reward = 0.0
+            self.map.prev_reward[coord] = self.map.cur_reward[coord]
+            self.map.cur_reward[coord] = 0
 
-            agent.data.actions -= 1
+            self.map.actions[coord] -= 1
+
+        # notify all alive agents in case of win
+        if self._done:
+            # TODO: make faster for large number of agents
+            for agent in self.agents:
+                coord, actor = agent['coord'], agent['actor']
+
+                if self.map.health[coord] == 0:
+                    continue
+
+                obs = self._observation(coord)
+                actor.step(obs, self.map.prev_reward[coord], True)
 
         return self._done
 
     def reset(self):
         self.img.reset()
-        self.world = SparsePlane()
-        self.members = [len(self.agents[team]) for team in range(len(self.agents))]
+        self.map.reset()
+        self.members = [0] * self.teams_count
+        self.interrupted = False
 
-        for team, agents in self.agents.items():
-            for agent in agents:
-                coord = None
-                while coord is None or coord in self.world:
-                    coord = tuple(random.randint(0, dim-1) for dim in self.conf.world_shape)
-
-                self.world[coord] = agent
-                agent.reset(
-                    team=team,
-                    health=self.conf.health,
-                    actions=self.conf.actions,
-                    comm=self.conf.comm_init(shape=self.conf.comm_shape)
+        radius = self.conf.view_radius
+        for agent in self.agents:
+            coord = None
+            while coord is None or self.map.used[coord]:
+                coord = tuple(
+                    random.randint(radius, dim - 1 - radius) for dim in self.conf.world_shape
                 )
+
+            agent['actor'].reset()
+            agent['coord'] = coord
+            self.members[agent['team']] += 1
+
+            self.map.used[coord] = True
+            self.map.team[coord] = agent['team']
+            self.map.health[coord] = self.conf.health
+            self.map.actions[coord] = self.conf.actions
+            self.map.comm[coord] = None
 
     def render(self):
         shape = self.conf.world_shape
@@ -271,9 +279,11 @@ class TeamsEnv(Env):
 
         for i in range(n):
             for j in range(m):
-                if (i, j) in self.world:
-                    data = self.world[i, j].data
-                    color = self.img.color(group=data.team, alpha=data.health)
+                if self.map.used[(i, j)]:
+                    color = self.img.color(
+                        group=self.map.team[(i, j)],
+                        alpha=self.map.health[(i, j)]
+                    )
                 else:
                     color = self.img.background
 

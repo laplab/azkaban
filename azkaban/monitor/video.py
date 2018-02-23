@@ -14,8 +14,8 @@ class VideoMonitor(Monitor):
         self.dpi = dpi
         self.writer_type = writer_type
 
-    def step(self):
-        done = self.env.step()
+    def step(self, interrupt=False):
+        done = self.env.step(interrupt)
         self.env.render()
 
         self.writer.grab_frame()

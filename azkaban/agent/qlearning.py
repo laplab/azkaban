@@ -6,10 +6,11 @@ from azkaban.agent.core import Agent
 import numpy as np
 
 
-class TabularQLearningAgent(Agent):
+class TeamsTabularQLearningAgent(Agent):
     def __init__(self, conf, alpha, epsilon, discount, decay=None, shared_q=None):
-        self.action_space = conf.action_space
-        self.comm = np.zeros(conf.comm_shape)
+        self.conf = conf
+        self.action_space = self.conf.action_space
+        self.comm = np.zeros(self.conf.comm_shape)
 
         self.Q = shared_q or defaultdict(partial(defaultdict, int))
         self.alpha = alpha
@@ -38,13 +39,12 @@ class TabularQLearningAgent(Agent):
         pass
 
     def _get_state(self, obs):
-        team = obs.state.team
-        state = []
-        for visible in obs.view:
-            if visible.team is not None:
-                state.append(1 + (visible.team == team))
-            else:
-                state.append(0)
+        team, *_ = obs
+        shape = team.shape
+
+        middle = tuple(x // 2 for x in shape)
+
+        state = (team == team[middle]).astype(int).flatten()
 
         return tuple(state)
 
@@ -56,7 +56,7 @@ class TabularQLearningAgent(Agent):
 
     def _get_best_action(self, state):
         best_action = None
-        for action in self.action_space.iter():
+        for action in self.action_space.elements():
             if best_action is None or self._get_q(state, action) > self._get_q(state, best_action):
                 best_action = action
 
