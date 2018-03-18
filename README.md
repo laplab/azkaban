@@ -1,23 +1,45 @@
-## Learning communicative and cooperative strategies in multi-agent decision processes
-#### Лапков Никита Алексеевич, БПМИ161 [`wiki`](http://wiki.cs.hse.ru/Learning_communicative_and_cooperative_strategies_in_multi-agent_decision_processes_(%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82))
+# Azkaban 🏯
+Multiagent environments for Reinforcement Learning with emphasis on communication
 
-### Актуальность
-Во многих задачах результат значительно улучшается (а иногда и просто недостежим в ином случае) если агенты действуют сообща. Задача данного проекта состоит в том, чтобы адаптировать классические методы RL для задачи с большим количеством кооперативных агентов с возможностью коммуникации. Следовательно наш проект решит важную существующую задачу. Следовательно он актуален.
+## Installation
+Azkaban relies on Python 3 and PyTorch. Please follow the [instruction](http://pytorch.org/) to install the second one manually.  
+Other dependencies can be installed as usual:
 
-### Существующие решения
-- [maddpg](https://blog.openai.com/learning-to-cooperate-compete-and-communicate/)
+```bash
+pip install -r requirements.txt
+python setup.py install
+```
 
-### Используемые технологические решения
-|                         Технология                        | Обоснование                                        |
-|-----------------------------------------------------------|----------------------------------------------------|
-| [`python 3`](https://www.python.org/)                     | Большое количество библиотек для машинного обучения|
-| [`tensorflow`](https://github.com/tensorflow/tensorflow)  | Удобный декларативный API графов вычислений        |
-| [`pytorch`](https://github.com/pytorch/pytorch)           | Удобный императивный API графов вычислений         |
+## Examples
+Examples of making experiments with Azkaban are located in [notebooks](https://github.com/laplab/azkaban/tree/master/notebooks) folder.
 
-### План работы
-| # | Пункт                                                                            | ⏰             |
-|---|----------------------------------------------------------------------------------|---------------|
-| ✅ | Среда для экспериментов                                                          | КТ1           |
-| ✅ | A3C                                                                             | Новый Год     |
-|   | Unrolled policy gradient                                                         | Конец Января  |
-|   | [maddpg](https://blog.openai.com/learning-to-cooperate-compete-and-communicate/) | Конец Февраля |
+## Structure
+```
+├── azkaban
+│   ├── agent
+│   │   ├── a3c.py          # A3C agent
+│   │   ├── qlearning.py    # Tabular Qlearning agent
+│   │   └── stochastic.py   # Random agent
+│   ├── display             # utilities for visualizing env state
+│   ├── env
+│   │   └── team.py         # Teams environment
+│   ├── monitor             # utilities for recording sessions
+│   ├── optim
+│   │   └── shared_adam.py  # Adam for async use by multiple agents
+│   ├── space
+│   │   └── discrete.py     # Discrete action space
+│   └── utils               # code utilities
+├── docs                    # documentation and experiments logs
+└── notebooks               # notebooks with experiments
+```
+
+## Goals
+Experiments results can be seen [here](https://laplab.github.io/azkaban/). Official university project description can 
+be found [here](http://wiki.cs.hse.ru/Learning_communicative_and_cooperative_strategies_in_multi-agent_decision_processes_(проект)) (russian).
+
+- [x] Environment
+- [x] Random agent
+- [x] Tabular Qlearning agent
+- [x] A3C agent
+- [ ] Basic communication
+- [ ] [maddpg](https://blog.openai.com/learning-to-cooperate-compete-and-communicate/)
