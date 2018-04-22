@@ -152,7 +152,7 @@ class A3CAgent(Agent):
         log_prob = log_probs.gather(1, Variable(action))
         self.log_probs.append(log_prob)
 
-        return action_id, comm.data.numpy()
+        return action_id, np.asarray(comm.data).copy()
 
     def reset(self):
         self.rewards = []

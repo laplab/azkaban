@@ -59,7 +59,9 @@ class ParallelRunner(object):
 
         self.shared_lock = mp.Lock()
         self.shared_model = self.create_model()
+        self.shared_model.share_memory()
         self.shared_optimizer = self.create_optimizer()
+        self.shared_optimizer.share_memory()
 
     @abstractmethod
     def create_model(self):
