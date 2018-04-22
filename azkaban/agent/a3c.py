@@ -30,7 +30,6 @@ class A3CParams(object):
 class A3CAgent(Agent):
     def __init__(self, conf, params, model, shared_model, shared_optimizer, trainable=True, lock=None):
         self.conf = conf
-        self.comm = np.zeros(self.conf.comm_shape)
 
         self.params = params
 
@@ -57,11 +56,15 @@ class A3CAgent(Agent):
 
     def _ensure_zero_grads(self):
         for param in self.model.parameters():
-            param.grad.data.zero_()
+            if param.grad is not None:
+                param.grad.data.zero_()
 
     def _clip_grads(self):
         if self.params.grad_max_norm is not None:
             torch.nn.utils.clip_grad_norm(self.model.parameters(), self.params.grad_max_norm)
+
+    def dV_dcomm(self, comm):
+        pass
 
     def step(self, obs, prev_reward, done):
         # add reward for previous step if was any
@@ -74,7 +77,7 @@ class A3CAgent(Agent):
             if done:
                 last_state_value = Variable(torch.zeros((1, 1)))
             else:
-                _, last_state_value = self.model(obs)
+                _, last_state_value, _ = self.model(obs)
 
             self.state_values.append(last_state_value)
 
@@ -132,13 +135,13 @@ class A3CAgent(Agent):
             with self.lock:
                 self.model.load_state_dict(self.shared_model.state_dict())
 
-        logits, state_value = self.model(obs)
+        logits, state_value, comm = self.model(obs)
 
         state_value *= (1 - done)
         self.state_values.append(state_value)
 
-        probs = F.softmax(logits)
-        log_probs = F.log_softmax(logits)
+        probs = F.softmax(logits, dim=1)
+        log_probs = F.log_softmax(logits, dim=1)
 
         entropy = -(log_probs * probs).sum(1, keepdim=True)
         self.entropies.append(entropy)
@@ -149,7 +152,7 @@ class A3CAgent(Agent):
         log_prob = log_probs.gather(1, Variable(action))
         self.log_probs.append(log_prob)
 
-        return action_id, self.comm
+        return action_id, comm.data.numpy()
 
     def reset(self):
         self.rewards = []

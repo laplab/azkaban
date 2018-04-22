@@ -7,8 +7,9 @@ from torch.autograd import Variable
 
 
 class A3CModel(nn.Module):
-    def __init__(self, in_units, n_actions):
+    def __init__(self, in_units, n_actions, comm_shape):
         super(A3CModel, self).__init__()
+        self.comm = np.zeros(comm_shape)
 
         self.fc1 = nn.Linear(in_units, 256)
 
@@ -37,4 +38,4 @@ class A3CModel(nn.Module):
         logits = self.logits(x)
         state_value = self.state_value(x)
 
-        return logits, state_value
+        return logits, state_value, self.comm

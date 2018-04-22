@@ -14,13 +14,14 @@ class TeamsMap(object):
     def __init__(self, conf):
         self.conf = conf
 
-        self.used = None
-        self.team = None
-        self.health = None
-        self.actions = None
-        self.cur_reward = None
-        self.prev_reward = None
-        self.comm = None
+        self.used = np.zeros(self.conf.world_shape, dtype=np.bool)
+        self.team = np.zeros(self.conf.world_shape, dtype=np.int)
+        self.health = np.zeros(self.conf.world_shape, dtype=np.int)
+        self.actions = np.zeros(self.conf.world_shape, dtype=np.int)
+        self.cur_reward = np.zeros(self.conf.world_shape, dtype=np.float)
+        self.prev_reward = np.zeros(self.conf.world_shape, dtype=np.float)
+        self.comm = np.zeros(self.conf.world_shape + self.conf.comm_shape,
+                             dtype=np.float)
 
         self.reset()
 
@@ -42,17 +43,17 @@ class TeamsMap(object):
         self.actions[coord] = 0
         self.cur_reward[coord] = 0
         self.prev_reward[coord] = 0
-        self.comm[coord] = np.zeros(self.conf.comm_shape)
+        self.comm[coord].fill(0)
 
     def reset(self):
-        self.used = np.zeros(self.conf.world_shape, dtype=np.bool)
+        self.used.fill(False)
 
-        self.team = np.zeros(self.conf.world_shape, dtype=np.int)
-        self.health = np.zeros(self.conf.world_shape, dtype=np.int)
-        self.actions = np.zeros(self.conf.world_shape, dtype=np.int)
-        self.cur_reward = np.zeros(self.conf.world_shape, dtype=np.float)
-        self.prev_reward = np.zeros(self.conf.world_shape, dtype=np.float)
-        self.comm = np.zeros(self.conf.world_shape + self.conf.comm_shape, dtype=np.float)
+        self.team.fill(0)
+        self.health.fill(0)
+        self.actions.fill(0)
+        self.cur_reward.fill(0)
+        self.prev_reward.fill(0)
+        self.comm.fill(0)
 
 
 class TeamsActions(Enum):
@@ -173,8 +174,11 @@ class TeamsEnv(Env):
 
             self.map.actions[coord] += 1
             obs = self._observation(coord)
+
             # TODO: FIX if done happened on the previous step other agents are not notified
             action_id, comm = actor.step(obs, self.map.prev_reward[coord], self._done)
+            self.map.comm[coord] = comm
+
             direction, action = self.conf.action_space.get(action_id)
             new_coord, success = self._move(coord, direction)
 
