@@ -3,7 +3,6 @@ from enum import Enum
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 from azkaban.agent.core import Agent
 from azkaban.utils import NoOpContextManager
@@ -61,21 +60,18 @@ class A3CAgent(Agent):
 
     def _clip_grads(self):
         if self.params.grad_max_norm is not None:
-            torch.nn.utils.clip_grad_norm(self.model.parameters(), self.params.grad_max_norm)
-
-    def dV_dcomm(self, comm):
-        pass
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.params.grad_max_norm)
 
     def step(self, obs, prev_reward, done):
         # add reward for previous step if was any
         if len(self.state_values) > 0:
-            self.rewards.append(Variable(torch.FloatTensor(np.array([prev_reward]))))
+            self.rewards.append(torch.tensor(np.array([prev_reward]), dtype=torch.float32))
 
         if (done or len(self.state_values) >= self.params.update_steps) and self.trainable:
-            loss = Variable(torch.zeros((1, 1)))
+            loss = torch.zeros((1, 1))
 
             if done:
-                last_state_value = Variable(torch.zeros((1, 1)))
+                last_state_value = torch.zeros((1, 1))
             else:
                 _, last_state_value, _ = self.model(obs)
 
@@ -84,7 +80,7 @@ class A3CAgent(Agent):
             n = len(self.state_values)
 
             reference_state_value = self.state_values[-1]
-            gae = Variable(torch.zeros(1, 1))
+            gae = torch.zeros(1, 1)
             for t in range(n-2, -1, -1):
                 cur_reward, cur_log_prob, cur_state_value = self.rewards[t], self.log_probs[t], self.state_values[t]
                 cur_entropy, next_state_value = self.entropies[t], self.state_values[t+1]
@@ -146,10 +142,10 @@ class A3CAgent(Agent):
         entropy = -(log_probs * probs).sum(1, keepdim=True)
         self.entropies.append(entropy)
 
-        action = probs.multinomial().data
+        action = probs.multinomial(num_samples=1).data
         action_id = action.numpy()[0][0]
 
-        log_prob = log_probs.gather(1, Variable(action))
+        log_prob = log_probs.gather(1, action)
         self.log_probs.append(log_prob)
 
         return action_id, np.asarray(comm.data).copy()

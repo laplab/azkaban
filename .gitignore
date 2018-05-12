@@ -206,3 +206,8 @@ crashlytics-build.properties
 fabric.properties
 
 .idea/*
+
+#################
+## TensorBoard ##
+#################
+logs/

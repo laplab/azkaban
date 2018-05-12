@@ -3,7 +3,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torch.autograd import Variable
 
 
 class A3CModel(nn.Module):
@@ -26,9 +25,9 @@ class A3CModel(nn.Module):
         layers = mask, health, actions
         state = np.stack(layers, axis=-1).flatten().astype(float)
 
-        tensor = torch.FloatTensor(state).unsqueeze(0)
+        tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
 
-        return Variable(tensor)
+        return tensor
 
     def forward(self, obs):
         x = self._get_state(obs)
