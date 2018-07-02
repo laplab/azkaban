@@ -44,6 +44,9 @@ class A3CAgent(Agent):
         self.log_probs = None
         self.state_values = None
         self.entropies = None
+        self.grad_updates = None
+
+        self.prev_comm = None
 
         self.reset()
 
@@ -62,10 +65,13 @@ class A3CAgent(Agent):
         if self.params.grad_max_norm is not None:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.params.grad_max_norm)
 
-    def step(self, obs, prev_reward, done):
+    def step(self, obs, prev_reward, comms, dcomm, done):
         # add reward for previous step if was any
         if len(self.state_values) > 0:
             self.rewards.append(torch.tensor(np.array([prev_reward]), dtype=torch.float32))
+
+        if self.prev_comm is not None:
+            self.grad_updates.append((self.prev_comm, dcomm))
 
         if (done or len(self.state_values) >= self.params.update_steps) and self.trainable:
             loss = torch.zeros((1, 1))
@@ -73,7 +79,7 @@ class A3CAgent(Agent):
             if done:
                 last_state_value = torch.zeros((1, 1))
             else:
-                _, last_state_value, _ = self.model(obs)
+                _, last_state_value, _, _ = self.model(obs, comms)
 
             self.state_values.append(last_state_value)
 
@@ -113,8 +119,14 @@ class A3CAgent(Agent):
                 loss -= actor_pseudo_j.mean()
                 loss += self.params.value_loss_coeff * critic_loss.mean()
 
-            loss.backward()
-            self._clip_grads()
+            for a, b in self.grad_updates:
+                a.backward(
+                    gradient=torch.tensor(b, dtype=torch.float32).unsqueeze(0),
+                    retain_graph=True,
+                )
+
+            loss.backward(retain_graph=True)
+            # self._clip_grads()
 
             with self.lock:
                 self._ensure_shared_grads()
@@ -127,11 +139,36 @@ class A3CAgent(Agent):
             self.log_probs = []
             self.state_values = []
             self.entropies = []
+            self.grad_updates = []
 
             with self.lock:
                 self.model.load_state_dict(self.shared_model.state_dict())
 
-        logits, state_value, comm = self.model(obs)
+        # if self.prev_comm is not None:
+        #     print('--- Before 2 ---')
+        #     for parameter in self.model.parameters():
+        #         mask = parameter.grad != 0
+        #         if isinstance(mask, bool):
+        #             print(mask)
+        #         else:
+        #             print((parameter.grad != 0).any())
+        #     print('--- ----')
+
+        logits, state_value, comm, dcomms = self.model(obs, comms)
+        #
+        # if self.prev_comm is not None:
+        #     print('--- After ---')
+        #     for parameter in self.model.parameters():
+        #         mask = parameter.grad != 0
+        #         if isinstance(mask, bool):
+        #             print(mask)
+        #         else:
+        #             print((parameter.grad != 0).any())
+        #     print('--- ----')
+
+        self.prev_comm = comm
+
+        dcomms = [dcomm.numpy() for dcomm in dcomms]
 
         state_value *= (1 - done)
         self.state_values.append(state_value)
@@ -148,13 +185,15 @@ class A3CAgent(Agent):
         log_prob = log_probs.gather(1, action)
         self.log_probs.append(log_prob)
 
-        return action_id, np.asarray(comm.data).copy()
+        return action_id, np.asarray(comm.data).copy(), dcomms
 
     def reset(self):
         self.rewards = []
         self.log_probs = []
         self.state_values = []
         self.entropies = []
+        self.grad_updates = []
+        self.prev_comm = None
 
         with self.lock:
             self.model.load_state_dict(self.shared_model.state_dict())

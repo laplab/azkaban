@@ -5,16 +5,16 @@ sys.path.append('../../../')
 from azkaban.agent import RandomAgent, A3CAgent, A3CParams, AdvantageMode
 from azkaban.env import TeamsEnv, TeamsEnvConf
 from azkaban.optim import SharedAdam
-from notebooks.a3c_vs_random.model import A3CModel
+from experiments.avicenna_vs_random.model import AvicennaModel
 from azkaban.utils.parallel import ParallelRunner
 
 
-class A3CParallelRunner(ParallelRunner):
+class AvicennaParallelRunner(ParallelRunner):
     def __init__(self, conf, params, *args, **kwargs):
         self.conf = conf
         self.params = params
 
-        super(A3CParallelRunner, self).__init__(*args, **kwargs)
+        super(AvicennaParallelRunner, self).__init__(*args, **kwargs)
 
     def create_optimizer(self):
         return SharedAdam(
@@ -23,10 +23,10 @@ class A3CParallelRunner(ParallelRunner):
         )
 
     def create_model(self):
-        return A3CModel(
-            in_units=27,
+        return AvicennaModel(
+            obs_size=18,
+            comm_size=self.conf.comm_shape[0],
             n_actions=self.conf.action_space.shape()[0],
-            comm_shape=self.conf.comm_shape
         )
 
     def create_buddy(self):
@@ -55,11 +55,11 @@ class A3CParallelRunner(ParallelRunner):
 
 if __name__ == '__main__':
     conf = TeamsEnvConf(
-        world_shape=(7, 7),
-        comm_shape=(0,),
+        world_shape=(10, 10),
+        comm_shape=(16,),
     )
     params = A3CParams()
     params.advantage_mode = AdvantageMode.GAE
 
-    runner = A3CParallelRunner(conf, params, n_workers=5)
+    runner = AvicennaParallelRunner(conf, params, n_buddies=7, n_workers=1)
     runner.run()

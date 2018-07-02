@@ -5,7 +5,7 @@ class Agent(object):
     """Interface for an agent"""
 
     @abstractmethod
-    def step(self, new_observation, reward, done):
+    def step(self, new_observation, reward, comms, dcomm, done):
         """
         Called by env to get an action from the agent
 

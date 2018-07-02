@@ -3,11 +3,13 @@ from enum import Enum
 from itertools import product
 
 import numpy as np
+from scipy.spatial.distance import euclidean
 
 from azkaban.display import Table
 from azkaban.env.core import Env, EnvConf
 from azkaban.error import ArgumentError
 from azkaban.space import Discrete
+from azkaban.agent.a3c import A3CAgent
 
 
 class TeamsMap(object):
@@ -22,6 +24,8 @@ class TeamsMap(object):
         self.prev_reward = np.zeros(self.conf.world_shape, dtype=np.float)
         self.comm = np.zeros(self.conf.world_shape + self.conf.comm_shape,
                              dtype=np.float)
+        self.dcomm = np.zeros(self.conf.world_shape + self.conf.comm_shape,
+                              dtype=np.float)
 
         self.reset()
 
@@ -33,6 +37,7 @@ class TeamsMap(object):
         self.cur_reward[dest] = self.cur_reward[source]
         self.prev_reward[dest] = self.prev_reward[source]
         self.comm[dest] = self.comm[source]
+        self.dcomm[dest] = self.dcomm[source]
 
         self.clear(source)
 
@@ -44,6 +49,7 @@ class TeamsMap(object):
         self.cur_reward[coord] = 0
         self.prev_reward[coord] = 0
         self.comm[coord].fill(0)
+        self.dcomm[coord].fill(0)
 
     def reset(self):
         self.used.fill(False)
@@ -54,6 +60,7 @@ class TeamsMap(object):
         self.cur_reward.fill(0)
         self.prev_reward.fill(0)
         self.comm.fill(0)
+        self.dcomm.fill(0)
 
 
 class TeamsActions(Enum):
@@ -133,7 +140,21 @@ class TeamsEnv(Env):
             group_labels=self.conf.team_names
         )
 
+        self.stats = []
+
         self.reset()
+
+    def _visible_buddies(self, center):
+        radius = self.conf.view_radius
+
+        team = self.map.team[center]
+        buddies = []
+        for agent in self.agents:
+            coord = agent['coord']
+            if self.map.team[coord] == team and coord != center:
+                buddies.append(coord)
+
+        return buddies
 
     def _observation(self, center):
         radius = self.conf.view_radius
@@ -143,8 +164,7 @@ class TeamsEnv(Env):
 
         return (self.map.team[indices],
                 self.map.health[indices],
-                self.map.actions[indices],
-                self.map.comm[indices])
+                self.map.actions[indices])
 
     @property
     def _done(self):
@@ -165,6 +185,27 @@ class TeamsEnv(Env):
 
         random.shuffle(self.agents)
 
+        if len(self.stats) > 0 and len(self.stats) % 500 == 0:
+            stats = np.array(self.stats)
+            print_array = lambda x: print(np.array2string(x, threshold=np.inf, max_line_width=np.inf, separator=',').replace('\n', ''))
+
+            mean = np.mean(stats, axis=0)
+            std = np.std(stats, axis=0)
+
+            print('-' * 100)
+            print('{} communication vectors collected'.format(len(self.stats)))
+
+            print('Mean norm:', np.linalg.norm(mean))
+            print('Mean vector:')
+            print_array(mean)
+
+            print('Std norm:', np.linalg.norm(std))
+            print('Std vector:')
+            print_array(std)
+
+            print('-' * 100)
+            print()
+
         for agent in self.agents:
             coord, actor = agent['coord'], agent['actor']
 
@@ -175,9 +216,24 @@ class TeamsEnv(Env):
             self.map.actions[coord] += 1
             obs = self._observation(coord)
 
+            buddies = self._visible_buddies(coord)
+            comms = [self.map.comm[bcoord] for bcoord in buddies]
+
             # TODO: FIX if done happened on the previous step other agents are not notified
-            action_id, comm = actor.step(obs, self.map.prev_reward[coord], self._done)
+            action_id, comm, dcomms = actor.step(
+                obs,
+                self.map.prev_reward[coord],
+                comms,
+                self.map.dcomm[coord],
+                self._done
+            )
+
+            if isinstance(actor, A3CAgent):
+                self.stats.append(comm)
+
             self.map.comm[coord] = comm
+            for bcoord, dcomm in zip(buddies, dcomms):
+                self.map.dcomm[bcoord] += dcomm
 
             direction, action = self.conf.action_space.get(action_id)
             new_coord, success = self._move(coord, direction)
@@ -216,7 +272,16 @@ class TeamsEnv(Env):
                     for neighbour in self.agents:
                         if neighbour['coord'] == new_coord:
                             new_obs = self._observation(new_coord)
-                            neighbour['actor'].step(new_obs, self.map.prev_reward[new_coord], True)
+
+                            buddies = self._visible_buddies(new_coord)
+                            comms = [self.map.comm[bcoord] for bcoord in buddies]
+                            neighbour['actor'].step(
+                                new_obs,
+                                self.map.prev_reward[new_coord],
+                                comms,
+                                self.map.dcomm[new_coord],
+                                True
+                            )
                             break
 
                     self.members[self.map.team[new_coord]] -= 1
@@ -245,7 +310,17 @@ class TeamsEnv(Env):
                     continue
 
                 obs = self._observation(coord)
-                actor.step(obs, self.map.prev_reward[coord], True)
+
+                buddies = self._visible_buddies(coord)
+                comms = [self.map.comm[bcoord] for bcoord in buddies]
+
+                actor.step(
+                    obs,
+                    self.map.prev_reward[coord],
+                    comms,
+                    self.map.dcomm[coord],
+                    True
+                )
 
         return self._done
 
@@ -271,7 +346,6 @@ class TeamsEnv(Env):
             self.map.team[coord] = agent['team']
             self.map.health[coord] = self.conf.health
             self.map.actions[coord] = self.conf.actions
-            self.map.comm[coord] = None
 
     def render(self):
         shape = self.conf.world_shape
